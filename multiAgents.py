@@ -197,7 +197,45 @@ class MinimaxAgent(MultiAgentSearchAgent):
             Returns the total number of agents in the game
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        legalActions = gameState.getLegalActions()
+        bestAction = Directions.STOP
+        bestScore = -(float("inf"))
+
+        for action in legalActions:
+            nextState = gameState.generateSuccessor(0, action)
+            nextScore = self.getValue(nextState, 0, 1)
+            if nextScore > bestScore:
+                bestAction = action
+                bestScore = nextScore
+        return bestAction
+
+    def maxValue(self, gameState, currentDepth):
+        values = [float("-inf")]
+        for action in gameState.getLegalActions(0):
+            values.append(self.getValue(gameState.generateSuccessor(0, action), currentDepth, 1))
+
+        return max(values)
+
+    def minValue(self, gameState, currentDepth, agentIndex):
+        values = [float("inf")]
+        for action in gameState.getLegalActions(agentIndex):
+            lastGhostIndex = gameState.getNumAgents() - 1
+            if agentIndex == lastGhostIndex:
+                values.append(self.getValue(gameState.generateSuccessor(agentIndex, action), currentDepth+1, 0))
+            else:
+                values.append(self.getValue(gameState.generateSuccessor(agentIndex, action), currentDepth, agentIndex+1))
+
+        return min(values)
+
+    def getValue(self, gameState, currentDepth, agentIndex):
+        if gameState.isWin() or gameState.isLose() or currentDepth == self.depth:
+            return self.evaluationFunction(gameState)
+        elif agentIndex == 0:
+            return self.maxValue(gameState,currentDepth)
+        else:
+            return self.minValue(gameState, currentDepth, agentIndex)
+
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
