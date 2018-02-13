@@ -23,6 +23,9 @@ from game import Agent
 
 _DEBUG = False
 ghost_weight = 1
+capsule_weight = 1
+score_weight = 0.1
+scared_weight = 10
 
 class ReflexAgent(Agent):
     """
@@ -353,13 +356,60 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
 
     def getAction(self, gameState):
         """
-          Returns the expectimax action using self.depth and self.evaluationFunction
+          Returns the minimax action from the current gameState using self.depth
+          and self.evaluationFunction.
 
-          All ghosts should be modeled as choosing uniformly at random from their
-          legal moves.
+          Here are some method calls that might be useful when implementing minimax.
+
+          gameState.getLegalActions(agentIndex):
+            Returns a list of legal actions for an agent
+            agentIndex=0 means Pacman, ghosts are >= 1
+
+          gameState.generateSuccessor(agentIndex, action):
+            Returns the successor game state after an agent takes an action
+
+          gameState.getNumAgents():
+            Returns the total number of agents in the game
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        legalActions = gameState.getLegalActions()
+        bestAction = Directions.STOP
+        bestScore = -(float("inf"))
+
+        for action in legalActions:
+            nextState = gameState.generateSuccessor(0, action)
+            nextScore = self.getValue(nextState, 0, 1)
+            if nextScore > bestScore:
+                bestAction = action
+                bestScore = nextScore
+        return bestAction
+
+    def maxValue(self, gameState, currentDepth):
+        values = [float("-inf")]
+        for action in gameState.getLegalActions(0):
+            values.append(self.getValue(gameState.generateSuccessor(0, action), currentDepth, 1))
+
+        return max(values)
+
+    def minValue(self, gameState, currentDepth, agentIndex):
+        values = []
+        for action in gameState.getLegalActions(agentIndex):
+            lastGhostIndex = gameState.getNumAgents() - 1
+            if agentIndex == lastGhostIndex:
+                values.append(self.getValue(gameState.generateSuccessor(agentIndex, action), currentDepth+1, 0))
+            else:
+                values.append(self.getValue(gameState.generateSuccessor(agentIndex, action), currentDepth, agentIndex+1))
+
+        return float(sum(values))/float(len(values))
+
+    def getValue(self, gameState, currentDepth, agentIndex):
+        if gameState.isWin() or gameState.isLose() or currentDepth == self.depth:
+            return self.evaluationFunction(gameState)
+        elif agentIndex == 0:
+            return self.maxValue(gameState,currentDepth)
+        else:
+            return self.minValue(gameState, currentDepth, agentIndex)
 
 def betterEvaluationFunction(currentGameState):
     """
@@ -369,7 +419,66 @@ def betterEvaluationFunction(currentGameState):
       DESCRIPTION: <write something here so we know what you did>
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # Useful information you can extract from a GameState (pacman.py)
+    # successorGameState = currentGameState.generatePacmanSuccessor(action)
+    newPos = currentGameState.getPacmanPosition()
+    newFood = currentGameState.getFood()
+    newCapsules = currentGameState.getCapsules()
+    newGhostStates = currentGameState.getGhostStates()
+    newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+
+    food_list = newFood.asList()
+    ghost_list = [state.getPosition() for state in newGhostStates]
+
+    # GET DISTANCES
+    food_distances = []
+    for food in food_list:
+        dist = float(util.manhattanDistance(food, newPos))
+        food_distances.append(dist)
+
+    avg_food_distance = np.mean(food_distances)
+    if len(food_distances) > 0:
+        closest_food = min(food_distances)
+    else:
+        closest_food = 1
+
+    food_sum = sum([1.0/float(dist) for dist in food_distances])
+
+    # Ghosts
+    ghost_distances = []
+    for food in ghost_list:
+        dist = util.manhattanDistance(food, newPos)
+        ghost_distances.append(dist)
+
+    avg_ghost_distance = np.mean(ghost_distances)
+    closest_ghost = min(ghost_distances)
+    if closest_ghost == 0:
+            closest_ghost = 0.1
+
+    # Capsules
+    capsule_distances = []
+    for capsule in newCapsules:
+        dist = util.manhattanDistance(capsule, newPos)
+        capsule_distances.append(dist)
+
+    avg_capsule_distance = np.mean(capsule_distances)
+    if len(capsule_distances) == 0:
+        closest_capsule = 1000
+    else:
+        closest_capsule = min(capsule_distances)
+
+    scared_ghosts = max(newScaredTimes)
+    if scared_ghosts > 0:
+        scared_score = 1
+    else:
+        scared_score = 0
+
+    new_score = 1.0/closest_food - ghost_weight/closest_ghost +  \
+                capsule_weight/closest_capsule +  score_weight*currentGameState.getScore() + \
+                scared_weight*scared_score
+
+    return new_score
+
 
 # Abbreviation
 better = betterEvaluationFunction
